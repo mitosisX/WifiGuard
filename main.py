@@ -229,7 +229,7 @@ class SettingsInterface(ScrollArea):
         self.startup.switchButton.checkedChanged.connect(config.set_startup)
         app.addSettingCard(self.startup)
         app.addSettingCard(SwitchSettingCard(FIF.MINIMIZE, "Keep running in tray on close",
-                                             "Closing the window leaves the watchdog running",
+                                             "On: closing the window keeps monitoring in the tray. Off: closing quits WifiGuard",
                                              cfg.closeToTray, app))
 
         self.expand.setSpacing(28)
@@ -254,6 +254,7 @@ class MainWindow(FluentWindow):
         self.monitor = monitor
         self.quitting = False
         self.everShown = False
+        self._quitDone = False
         self.home = HomeInterface(monitor, self)
         self.logPage = LogInterface(monitor, self)
         self.stats = StatsInterface(monitor, self)
@@ -324,6 +325,9 @@ class MainWindow(FluentWindow):
         self.activateWindow()
 
     def quit(self):
+        if self._quitDone:
+            return
+        self._quitDone = True
         self.quitting = True
         self.tray.hide()
         self.monitor.stop()
@@ -338,7 +342,11 @@ class MainWindow(FluentWindow):
             self.tray.showMessage("WifiGuard", "Still watching your connection from the tray.",
                                   QSystemTrayIcon.Information, 2500)
         else:
+            # Setting off (or no tray icon): closing the window must end the whole process. The app
+            # deliberately outlives its windows, so without this the monitor and tray icon kept
+            # running with nothing on screen.
             e.accept()
+            self.quit()
 
 
 def main():
