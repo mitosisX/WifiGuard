@@ -162,7 +162,7 @@ class StatsInterface(ScrollArea):
         self.table.setRowCount(len(rows))
         for r, (ts, kind, network, downtime) in enumerate(rows):
             when = datetime.fromisoformat(ts)
-            cells = [when.strftime("%b %d, %H:%M:%S"), KIND_TEXT.get(kind, kind), network or "-",
+            cells = [f"{when:%b %d}, {store.clock(when)}", KIND_TEXT.get(kind, kind), network or "-",
                      fmt_duration(downtime) if kind == "recovered" else "-"]
             for c, text in enumerate(cells):
                 self.table.setItem(r, c, QTableWidgetItem(text))

@@ -72,7 +72,7 @@ class Monitor(QThread):
 
     # -- internals --
     def _say(self, msg):
-        self.log.emit(f"{datetime.now():%H:%M:%S}  {msg}")
+        self.log.emit(f"{store.clock(datetime.now())}  {msg}")
 
     def _target(self):
         fixed = self.cfg.network.value
@@ -158,7 +158,7 @@ class Monitor(QThread):
 
             fails += 1
             if was_up:
-                self.last_drop = datetime.now().strftime("%b %d, %H:%M:%S")
+                self.last_drop = f"{datetime.now():%b %d}, {store.clock(datetime.now())}"
                 self._drop_at = time.monotonic()
                 store.add("drop", self.last_network)
                 self.historyChanged.emit()

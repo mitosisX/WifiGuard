@@ -20,6 +20,11 @@ _SCHEMA = """CREATE TABLE IF NOT EXISTS events (
 )"""
 
 
+def clock(dt):
+    """12-hour time without seconds, e.g. 10:02AM / 9:05PM."""
+    return dt.strftime("%I:%M%p").lstrip("0")
+
+
 def _connect():
     os.makedirs(DATA_DIR, exist_ok=True)
     con = sqlite3.connect(DB_PATH, timeout=5)
