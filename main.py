@@ -15,6 +15,7 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox, Expan
 
 import config
 import wlan
+from brand import TitleLogo
 from config import cfg
 from monitor import Monitor
 from splash import SplashScreen
@@ -266,6 +267,10 @@ class MainWindow(FluentWindow):
         self.setMinimumSize(720, 520)
         self.setWindowTitle("WifiGuard")
         self.setWindowIcon(FIF.WIFI.icon(color=GREEN))
+        # company mark, appended after the "WifiGuard" title (0 icon, 1 title, 2 logo)
+        bar = self.titleBar
+        bar.hBoxLayout.insertSpacing(2, 10)
+        bar.hBoxLayout.insertWidget(3, TitleLogo(bar), 0, Qt.AlignLeft | Qt.AlignVCenter)
         self.navigationInterface.setAcrylicEnabled(True)
         self.navigationInterface.setMinimumExpandWidth(700)   # show text labels next to icons
         self.navigationInterface.setExpandWidth(200)
