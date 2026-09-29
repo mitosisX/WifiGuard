@@ -1,6 +1,6 @@
 import sys
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMenu, QSystemTrayIcon, QVBoxLayout,
@@ -10,7 +10,7 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox, Expan
                             OptionsSettingCard, PlainTextEdit, PrimaryPushButton,
                             RangeSettingCard, ScrollArea, SettingCard, SettingCardGroup,
                             StrongBodyLabel, SubtitleLabel, SwitchSettingCard, Theme, TitleLabel, ToggleButton,
-                            qconfig, setTheme)
+                            isDarkTheme, qconfig, setTheme)
 
 import config
 import wlan
@@ -246,6 +246,7 @@ class MainWindow(FluentWindow):
         self.setWindowTitle("WifiGuard")
         self.setWindowIcon(FIF.WIFI.icon(color=GREEN))
         self.navigationInterface.setAcrylicEnabled(True)
+        self.setMicaEffectEnabled(True)
         self.navigationInterface.setMinimumExpandWidth(700)   # show text labels next to icons
         self.navigationInterface.setExpandWidth(200)
 
@@ -292,6 +293,12 @@ class MainWindow(FluentWindow):
         self.monitor.stop()
         self.monitor.wait(3000)
         QApplication.quit()
+
+    def _onThemeChangedFinished(self):
+        super()._onThemeChangedFinished()
+        # Mica is dropped when the theme flips; re-apply it (same workaround as the gallery example)
+        if self.isMicaEffectEnabled():
+            QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
 
     def closeEvent(self, e):
         if cfg.closeToTray.value and not self.quitting:
