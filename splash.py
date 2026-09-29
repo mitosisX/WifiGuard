@@ -4,11 +4,14 @@ from PySide6.QtCore import (QEasingCurve, QPropertyAnimation, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QApplication, QWidget
+from qfluentwidgets import isDarkTheme
 
 LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.svg")
 
-SURFACE = QColor("#0E1310")
-TAGLINE = QColor("#A3ADA8")   # 8:1 on SURFACE
+# (surface, tagline, logo green, border). The brand green #B0D135 vanishes on white, so light
+# mode uses a deeper green of the same hue (4.6:1 on the surface).
+DARK = (QColor("#0E1310"), QColor("#A3ADA8"), "#B0D135", QColor(255, 255, 255, 20))
+LIGHT = (QColor("#F9FAF7"), QColor("#4B554F"), "#5E8C0A", QColor(0, 0, 0, 30))
 
 SHOW_MS = 3000
 FADE_IN_MS = 450
@@ -24,7 +27,10 @@ class SplashScreen(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAccessibleName("WifiGuard is starting")
         self.resize(560, 340)
-        self.renderer = QSvgRenderer(LOGO)
+        self.surface, self.tagline, green, self.border = DARK if isDarkTheme() else LIGHT
+        with open(LOGO, "rb") as f:
+            svg = f.read().replace(b"#b0d135", green.encode())
+        self.renderer = QSvgRenderer(svg)
         self._done = False
         self.setWindowOpacity(0.0)
 
@@ -78,7 +84,9 @@ class SplashScreen(QWidget):
         p.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
         path = QPainterPath()
         path.addRoundedRect(QRectF(self.rect()), 20, 20)
-        p.fillPath(path, SURFACE)
+        p.fillPath(path, self.surface)
+        p.setPen(self.border)
+        p.drawPath(path)
 
         logoW = 340.0
         ar = self.renderer.defaultSize().height() / self.renderer.defaultSize().width()
@@ -91,5 +99,5 @@ class SplashScreen(QWidget):
         f.setPixelSize(13)
         f.setLetterSpacing(QFont.PercentageSpacing, 104)   # small text: slightly positive tracking
         p.setFont(f)
-        p.setPen(TAGLINE)
+        p.setPen(self.tagline)
         p.drawText(QRectF(0, y + logoH + 26, self.width(), 24), Qt.AlignCenter, "WifiGuard")
