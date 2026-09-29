@@ -1,4 +1,5 @@
 """Background internet watchdog: detects real internet loss and bounces Wi-Fi."""
+import queue
 import socket
 import threading
 import time
@@ -12,14 +13,26 @@ import wlan
 PROBES = [("1.1.1.1", 443), ("8.8.8.8", 443), ("9.9.9.9", 443)]
 
 
-def internet_ok(timeout=2.0):
-    """True if any well-known public endpoint accepts a TCP connection."""
-    for host, port in PROBES:
+def internet_ok(timeout=1.5):
+    """True if any well-known public endpoint accepts a TCP connection.
+
+    Probes run in parallel and the first success wins, so a healthy check returns in
+    milliseconds and a dead one takes `timeout` seconds (not len(PROBES) * timeout).
+    """
+    result = queue.Queue()
+
+    def probe(host, port):
         try:
             with socket.create_connection((host, port), timeout=timeout):
-                return True
+                result.put(True)
         except OSError:
-            continue
+            result.put(False)
+
+    for host, port in PROBES:
+        threading.Thread(target=probe, args=(host, port), daemon=True).start()
+    for _ in PROBES:
+        if result.get():
+            return True
     return False
 
 
@@ -90,6 +103,15 @@ class Monitor(QThread):
         finally:
             self.recovering.emit(False)
 
+    def _wait_for_internet(self, seconds):
+        """Poll quickly after a reconnect; True as soon as the internet answers."""
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline and not self._stop.is_set():
+            if internet_ok(1.0):
+                return True
+            self._stop.wait(0.25)
+        return False
+
     def _sleep(self, seconds):
         self._wake.wait(seconds)
         self._wake.clear()
@@ -101,7 +123,7 @@ class Monitor(QThread):
             if self._manual:
                 self._manual = False
                 self._recover("Manual reconnect.", "manual")
-                self._sleep(self.cfg.grace.value)
+                self._wait_for_internet(self.cfg.grace.value)
                 fails = 0
                 continue
             if self.paused:
@@ -147,9 +169,10 @@ class Monitor(QThread):
                 self._recover(f"Internet down for {fails} checks.")
                 failed_recoveries += 1
                 fails = 0
-                # Back off if reconnecting keeps not helping (e.g. ISP outage).
-                wait = self.cfg.grace.value + min(30 * (failed_recoveries - 1), 240)
-                self._sleep(wait)
+                if self._wait_for_internet(self.cfg.grace.value):
+                    continue   # next loop iteration confirms, logs and notifies the recovery at once
+                # Still down: back off so an ISP outage doesn't make us thrash the adapter.
+                self._sleep(min(30 * (failed_recoveries - 1), 240))
             else:
                 self._sleep(self.cfg.interval.value)
         self._say("Monitoring stopped.")

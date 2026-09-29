@@ -64,6 +64,20 @@ class Wlan:
     def __exit__(self, *exc):
         _wlan.WlanCloseHandle(self.h, None)
 
+    def is_connected(self, guid):
+        """True while the adapter reports the 'connected' state (wlan_interface_state_connected == 1)."""
+        p = ctypes.POINTER(WLAN_INTERFACE_INFO_LIST)()
+        if _wlan.WlanEnumInterfaces(self.h, None, ctypes.byref(p)):
+            return True
+        try:
+            arr = ctypes.cast(ctypes.byref(p.contents.InterfaceInfo), ctypes.POINTER(WLAN_INTERFACE_INFO))
+            for i in range(p.contents.dwNumberOfItems):
+                if bytes(arr[i].InterfaceGuid) == bytes(guid):
+                    return arr[i].isState == 1
+            return True
+        finally:
+            _wlan.WlanFreeMemory(p)
+
     def interfaces(self):
         p = ctypes.POINTER(WLAN_INTERFACE_INFO_LIST)()
         rc = _wlan.WlanEnumInterfaces(self.h, None, ctypes.byref(p))
@@ -144,5 +158,7 @@ def reconnect(profile: str):
             raise WlanError("No Wi-Fi interface found")
         guid = ifaces[0][0]
         w.disconnect(guid)
-        time.sleep(1.5)
+        deadline = time.monotonic() + 2.0    # reconnect as soon as the adapter has really dropped
+        while w.is_connected(guid) and time.monotonic() < deadline:
+            time.sleep(0.05)
         w.connect(guid, profile)
