@@ -266,7 +266,7 @@ class Monitor(QThread):
         fixed = self.cfg.network.value
         if fixed != "Auto":
             self.last_network = fixed
-        elif time.monotonic() - self._net_checked > 60:   # don't hammer the Wi-Fi service every check
+        elif time.monotonic() - self._net_checked > 120:   # spawns PowerShell, so poll sparingly
             self._net_checked = time.monotonic()
             self.last_network = wlan.current_network() or self.last_network
         self.status.emit(True, self.last_network)
