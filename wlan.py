@@ -4,12 +4,14 @@ Used instead of `netsh wlan connect`, which on recent Windows 11 builds is
 blocked unless Location services are on / the process is elevated.
 """
 import ctypes
-import re
+import struct
 import subprocess
+import time
 from ctypes import wintypes
 
 _wlan = ctypes.WinDLL("wlanapi")
-_CREATE_NO_WINDOW = 0x08000000
+_WLAN_INTF_OPCODE_CURRENT_CONNECTION = 7
+_INTERFACE_STATE_CONNECTED = 1
 
 
 class GUID(ctypes.Structure):
@@ -78,6 +80,26 @@ class Wlan:
         finally:
             _wlan.WlanFreeMemory(p)
 
+    def connected_profile(self, guid):
+        """Profile name of the current connection, or None when not connected.
+
+        WlanQueryInterface(current_connection) returns the profile name without the Location
+        permission that `netsh wlan show interfaces` now demands, and needs no PowerShell.
+        """
+        size, data = wintypes.DWORD(), ctypes.c_void_p()
+        rc = _wlan.WlanQueryInterface(self.h, ctypes.byref(guid), _WLAN_INTF_OPCODE_CURRENT_CONNECTION,
+                                      None, ctypes.byref(size), ctypes.byref(data), None)
+        if rc:
+            raise WlanError(f"WlanQueryInterface failed ({rc})")
+        try:
+            # WLAN_CONNECTION_ATTRIBUTES: DWORD isState, DWORD mode, WCHAR strProfileName[256], ...
+            raw = ctypes.string_at(data.value, size.value)
+        finally:
+            _wlan.WlanFreeMemory(data)
+        if struct.unpack_from("<I", raw, 0)[0] != _INTERFACE_STATE_CONNECTED:
+            return None
+        return raw[8:8 + 512].decode("utf-16-le").split(chr(0))[0] or None
+
     def interfaces(self):
         p = ctypes.POINTER(WLAN_INTERFACE_INFO_LIST)()
         rc = _wlan.WlanEnumInterfaces(self.h, None, ctypes.byref(p))
@@ -117,41 +139,46 @@ class Wlan:
             raise WlanError(f"WlanConnect failed ({rc})")
 
 
-def _ps(cmd: str) -> str:
-    out = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True,
-                         text=True, creationflags=_CREATE_NO_WINDOW, timeout=15)
-    return out.stdout.strip()
-
-
 def saved_profiles():
     with Wlan() as w:
         ifaces = w.interfaces()
         return w.profiles(ifaces[0][0]) if ifaces else []
 
 
-def current_network():
-    """Name of the connected Wi-Fi network's saved profile, or None.
-
-    Uses the network-connection profile (no location permission needed) and
-    maps it onto a saved WLAN profile (Windows appends ' 2', ' 47'... to names).
-    """
-    name = _ps("(Get-NetConnectionProfile | Where-Object { $_.InterfaceAlias -like 'Wi-Fi*' } "
-               "| Select-Object -First 1).Name")
-    if not name:
+def _net_connection_profile():
+    """Fallback that works even when Windows' Location switch is off (the API call is denied)."""
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-NetConnectionProfile | Where-Object { $_.InterfaceAlias -like 'Wi-Fi*' } "
+             "| Select-Object -First 1).Name"],
+            capture_output=True, text=True, timeout=15, creationflags=0x08000000).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if not out:
         return None
     try:
         profiles = saved_profiles()
     except WlanError:
-        return name
-    if name in profiles:
-        return name
-    base = re.sub(r"\s+\d+$", "", name)
-    return base if base in profiles else name
+        return out
+    if out in profiles:
+        return out
+    base = out.rsplit(" ", 1)[0] if out.rsplit(" ", 1)[-1].isdigit() else out   # Windows adds " 2", " 47"
+    return base if base in profiles else out
+
+
+def current_network():
+    """Saved-profile name of the Wi-Fi network we're connected to, or None."""
+    try:
+        with Wlan() as w:
+            ifaces = w.interfaces()
+            return w.connected_profile(ifaces[0][0]) if ifaces else None
+    except WlanError:
+        return _net_connection_profile()
 
 
 def reconnect(profile: str):
     """Disconnect the Wi-Fi adapter and reconnect to `profile`."""
-    import time
     with Wlan() as w:
         ifaces = w.interfaces()
         if not ifaces:

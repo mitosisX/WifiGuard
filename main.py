@@ -2,16 +2,16 @@ import os
 import sys
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMenu, QSystemTrayIcon, QVBoxLayout,
                                QWidget)
 from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox, ExpandLayout,
-                            FluentIcon as FIF, FluentWindow, IconWidget, NavigationItemPosition,
-                            OptionsSettingCard, PlainTextEdit, PrimaryPushButton,
+                            FluentIcon as FIF, FluentIconBase, FluentWindow, IconWidget, NavigationItemPosition,
+                            OptionsSettingCard, PlainTextEdit, PrimaryPushButton, PushButton,
                             RangeSettingCard, ScrollArea, SettingCard, SettingCardGroup,
                             StrongBodyLabel, SubtitleLabel, SwitchSettingCard, Theme, TitleLabel, ToggleButton,
-                            qconfig, setTheme)
+                            qconfig, setCustomStyleSheet, setTheme, setThemeColor)
 
 import config
 import wlan
@@ -28,6 +28,23 @@ GREEN_D, RED_D, AMBER_D = QColor("#B0D135"), QColor("#FF6B6F"), QColor("#FFB347"
 
 def tinted(icon, light, dark):
     return icon.colored(light, dark)
+
+
+class BrandButton(PrimaryPushButton):
+    """Primary button with dark text/icon. White on the lime brand green is only 1.9:1."""
+    INK = "#151C05"
+
+    QSS = f"PrimaryPushButton{{color:{INK}}}"
+
+    def style(self):
+        """Apply the dark-ink stylesheet (a custom __init__ would break the library's overloads)."""
+        setCustomStyleSheet(self, self.QSS, self.QSS)
+        return self
+
+    def _drawIcon(self, icon, painter, rect, state=QIcon.Off):
+        if isinstance(icon, FluentIconBase) and self.isEnabled():
+            icon = icon.icon(color=QColor(self.INK))
+        PushButton._drawIcon(self, icon, painter, rect, state)
 
 
 class StatCard(CardWidget):
@@ -88,7 +105,7 @@ class HomeInterface(QWidget):
 
         actions = QHBoxLayout()
         actions.setSpacing(10)
-        self.reconnectBtn = PrimaryPushButton(FIF.SYNC, "Reconnect now", self)
+        self.reconnectBtn = BrandButton(FIF.SYNC, "Reconnect now", self).style()
         self.pauseBtn = ToggleButton(FIF.PAUSE, "Pause monitoring", self)
         actions.addWidget(self.reconnectBtn)
         actions.addWidget(self.pauseBtn)
@@ -298,7 +315,8 @@ class MainWindow(FluentWindow):
         QApplication.quit()
 
     def closeEvent(self, e):
-        if cfg.closeToTray.value and not self.quitting:
+        # Without a tray icon a hidden window could never be reopened, so only hide when it exists.
+        if cfg.closeToTray.value and not self.quitting and self.tray.isVisible():
             e.ignore()
             self.hide()
             self.tray.showMessage("WifiGuard", "Still watching your connection from the tray.",
@@ -320,7 +338,8 @@ def main():
         return 0
     QLocalServer.removeServer(SERVER_NAME)
     server = QLocalServer()
-    server.listen(SERVER_NAME)
+    if not server.listen(SERVER_NAME):   # lost a startup race with another instance
+        return 0
 
     firstRun = not os.path.exists(config.CONFIG_PATH)
     config.load()
@@ -329,10 +348,13 @@ def main():
     # The Theme option card only writes the config value; without this the stylesheets never
     # refresh, so switching Dark -> Light left half the UI dark (same wiring as the gallery example).
     qconfig.themeChanged.connect(setTheme)
+    setThemeColor(config.BRAND)   # older config files still carry the previous accent
     monitor = Monitor(cfg)
     silent = "--tray" in sys.argv
     win = MainWindow(monitor, startHidden=True)
     server.newConnection.connect(lambda: (server.nextPendingConnection(), win.showNormalAndRaise()))
+    # Windows logoff/shutdown asks every window to close; refusing (hide-to-tray) would block it.
+    app.commitDataRequest.connect(lambda _mgr: setattr(win, "quitting", True), Qt.DirectConnection)
     monitor.start()   # monitoring begins immediately; the splash never delays protection
     if not silent:
         splash = SplashScreen()

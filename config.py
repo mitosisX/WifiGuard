@@ -6,6 +6,7 @@ from qfluentwidgets import (QConfig, ConfigItem, RangeConfigItem, RangeValidator
                             qconfig)
 
 APP_NAME = "WifiGuard"
+BRAND = "#B0D135"
 DATA_DIR = os.path.join(os.environ.get("APPDATA", "."), APP_NAME)
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -33,7 +34,9 @@ def _launch_command():
     exe = sys.executable
     if exe.lower().endswith("python.exe"):
         exe = exe[:-10] + "pythonw.exe"
-    script = os.path.abspath(sys.argv[0])
+    # __file__-relative, not sys.argv[0]: a relative argv[0] breaks once the cwd changes
+    # (e.g. after a file dialog), which would register a Run entry that points nowhere.
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")
     return f'"{exe}" "{script}" --tray'
 
 

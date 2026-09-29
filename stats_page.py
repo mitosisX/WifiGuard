@@ -147,6 +147,7 @@ class StatsInterface(ScrollArea):
 
         self.exportBtn.clicked.connect(self.exportCsv)
         self.clearBtn.clicked.connect(self.clearHistory)
+        self.monitor = monitor
         monitor.historyChanged.connect(self.refresh)
         self.refresh()
 
@@ -184,4 +185,6 @@ class StatsInterface(ScrollArea):
         box.cancelButton.setText("Cancel")
         if box.exec():
             store.clear()
+            self.monitor.reconnects = 0   # keep the Status page's "Reconnects today" in step
+            self.monitor.stats.emit(0, self.monitor.last_drop)
             self.refresh()
