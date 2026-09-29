@@ -1,4 +1,7 @@
+import ctypes
+import os
 import sys
+from ctypes import wintypes
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
@@ -212,14 +215,22 @@ class SettingsInterface(ScrollArea):
         app.addSettingCard(SwitchSettingCard(FIF.MINIMIZE, "Keep running in tray on close",
                                              "Closing the window leaves the watchdog running",
                                              cfg.closeToTray, app))
-        app.addSettingCard(OptionsSettingCard(qconfig.themeMode, FIF.BRUSH, "Theme",
-                                              "Change the appearance of the app",
-                                              texts=["Light", "Dark", "Use system setting"],
-                                              parent=app))
 
         self.expand.setSpacing(28)
         self.expand.setContentsMargins(36, 0, 36, 0)
         self.expand.addWidget(mon)
+        look = SettingCardGroup("Appearance", self.view)
+        look.addSettingCard(OptionsSettingCard(qconfig.themeMode, FIF.BRUSH, "Theme",
+                                               "Change the appearance of the app",
+                                               texts=["Light", "Dark", "Use system setting"],
+                                               parent=look))
+        look.addSettingCard(OptionsSettingCard(cfg.material, FIF.TRANSPARENT, "Window material",
+                                               "Mica is subtle (it barely shows in dark mode); "
+                                               "Acrylic visibly blurs what's behind the window",
+                                               texts=["Mica", "Mica Alt", "Acrylic", "Off"],
+                                               parent=look))
+
+        self.expand.addWidget(look)
         self.expand.addWidget(note)
         self.expand.addWidget(app)
         self.setStyleSheet("QScrollArea{background:transparent;border:none}"
@@ -246,7 +257,8 @@ class MainWindow(FluentWindow):
         self.setWindowTitle("WifiGuard")
         self.setWindowIcon(FIF.WIFI.icon(color=GREEN))
         self.navigationInterface.setAcrylicEnabled(True)
-        self.setMicaEffectEnabled(True)
+        cfg.material.valueChanged.connect(lambda _: self.applyMaterial())
+        self.applyMaterial()
         self.navigationInterface.setMinimumExpandWidth(700)   # show text labels next to icons
         self.navigationInterface.setExpandWidth(200)
 
@@ -294,11 +306,34 @@ class MainWindow(FluentWindow):
         self.monitor.wait(3000)
         QApplication.quit()
 
+    BACKDROP = {"Mica": 2, "Mica Alt": 4, "Acrylic": 3, "Off": 1}   # DWM_SYSTEMBACKDROP_TYPE
+
+    def applyMaterial(self):
+        on = cfg.material.value != "Off"
+        self.setMicaEffectEnabled(on)      # makes the window/page backgrounds transparent (or opaque)
+        if on:
+            self.applyMica()
+        self.update()
+
+    def applyMica(self):
+        """Set Mica through DWM directly.
+
+        qfluentwidgets' setMicaEffect only ever *sets* the dark-colours flag, so after Dark -> Light
+        the backdrop stayed dark while the widgets turned light. Toggling
+        DWMWA_USE_IMMERSIVE_DARK_MODE ourselves keeps backdrop and widgets in step."""
+        hwnd = wintypes.HWND(int(self.winId()))
+        dwm = ctypes.windll.dwmapi
+        self.windowEffect.removeBackgroundEffect(int(self.winId()))   # drop the library's accent policy
+        margins = (ctypes.c_int * 4)(-1, -1, -1, -1)                   # extend frame over the whole window
+        dwm.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(margins))
+        dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(ctypes.c_int(int(isDarkTheme()))), 4)  # dark mode
+        dwm.DwmSetWindowAttribute(hwnd, 38, ctypes.byref(ctypes.c_int(self.BACKDROP[cfg.material.value])), 4)
+
     def _onThemeChangedFinished(self):
         super()._onThemeChangedFinished()
-        # Mica is dropped when the theme flips; re-apply it (same workaround as the gallery example)
         if self.isMicaEffectEnabled():
-            QTimer.singleShot(100, lambda: self.windowEffect.setMicaEffect(self.winId(), isDarkTheme()))
+            self.applyMica()
+            QTimer.singleShot(100, self.applyMica)   # the frame repaints after the theme flips
 
     def closeEvent(self, e):
         if cfg.closeToTray.value and not self.quitting:
@@ -325,8 +360,13 @@ def main():
     server = QLocalServer()
     server.listen(SERVER_NAME)
 
+    firstRun = not os.path.exists(config.CONFIG_PATH)
     config.load()
-    setTheme(Theme.AUTO)
+    if firstRun:   # new installs follow the system theme; afterwards the saved choice wins
+        setTheme(Theme.AUTO)
+    # The Theme option card only writes the config value; without this the stylesheets never
+    # refresh, so switching Dark -> Light left half the UI dark (same wiring as the gallery example).
+    qconfig.themeChanged.connect(setTheme)
     monitor = Monitor(cfg)
     silent = "--tray" in sys.argv
     win = MainWindow(monitor, startHidden=True)
