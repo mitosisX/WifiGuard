@@ -3,7 +3,7 @@ import queue
 import socket
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from PySide6.QtCore import QThread, Signal
 
@@ -53,6 +53,7 @@ class Monitor(QThread):
         self.paused = False
         self.reconnects = store.today_count()
         self._drop_at = None
+        self._last_ok = time.monotonic()
         self.last_drop = "never"
         self.last_network = ""
         self._net_checked = 0.0
@@ -131,6 +132,7 @@ class Monitor(QThread):
                 self._sleep(1)
                 continue
 
+            checked_at = time.monotonic()
             up = internet_ok()
             if up:
                 if not was_up:
@@ -143,6 +145,7 @@ class Monitor(QThread):
                     self.historyChanged.emit()
                     failed_recoveries = 0
                 was_up, fails = True, 0
+                self._last_ok = checked_at
                 if self.cfg.network.value != "Auto":
                     self.last_network = self.cfg.network.value
                 self.status.emit(True, self.last_network)
@@ -158,8 +161,11 @@ class Monitor(QThread):
 
             fails += 1
             if was_up:
-                self.last_drop = f"{datetime.now():%b %d}, {store.clock(datetime.now())}"
-                self._drop_at = time.monotonic()
+                # The drop happened somewhere between the last good check and this one; take the
+                # midpoint so the outage length isn't systematically too short (or too long).
+                self._drop_at = (self._last_ok + checked_at) / 2
+                dropped = datetime.now() - timedelta(seconds=time.monotonic() - self._drop_at)
+                self.last_drop = f"{dropped:%b %d}, {store.clock(dropped)}"
                 store.add("drop", self.last_network)
                 self.historyChanged.emit()
                 self._say("Internet check failed.")
