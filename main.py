@@ -1,9 +1,7 @@
-import ctypes
 import os
 import sys
-from ctypes import wintypes
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMenu, QSystemTrayIcon, QVBoxLayout,
@@ -13,7 +11,7 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox, Expan
                             OptionsSettingCard, PlainTextEdit, PrimaryPushButton,
                             RangeSettingCard, ScrollArea, SettingCard, SettingCardGroup,
                             StrongBodyLabel, SubtitleLabel, SwitchSettingCard, Theme, TitleLabel, ToggleButton,
-                            isDarkTheme, qconfig, setTheme)
+                            qconfig, setTheme)
 
 import config
 import wlan
@@ -224,11 +222,6 @@ class SettingsInterface(ScrollArea):
                                                "Change the appearance of the app",
                                                texts=["Light", "Dark", "Use system setting"],
                                                parent=look))
-        look.addSettingCard(OptionsSettingCard(cfg.material, FIF.TRANSPARENT, "Window material",
-                                               "Mica is subtle (it barely shows in dark mode); "
-                                               "Acrylic visibly blurs what's behind the window",
-                                               texts=["Mica", "Mica Alt", "Acrylic", "Off"],
-                                               parent=look))
 
         self.expand.addWidget(look)
         self.expand.addWidget(note)
@@ -257,8 +250,6 @@ class MainWindow(FluentWindow):
         self.setWindowTitle("WifiGuard")
         self.setWindowIcon(FIF.WIFI.icon(color=GREEN))
         self.navigationInterface.setAcrylicEnabled(True)
-        cfg.material.valueChanged.connect(lambda _: self.applyMaterial())
-        self.applyMaterial()
         self.navigationInterface.setMinimumExpandWidth(700)   # show text labels next to icons
         self.navigationInterface.setExpandWidth(200)
 
@@ -305,35 +296,6 @@ class MainWindow(FluentWindow):
         self.monitor.stop()
         self.monitor.wait(3000)
         QApplication.quit()
-
-    BACKDROP = {"Mica": 2, "Mica Alt": 4, "Acrylic": 3, "Off": 1}   # DWM_SYSTEMBACKDROP_TYPE
-
-    def applyMaterial(self):
-        on = cfg.material.value != "Off"
-        self.setMicaEffectEnabled(on)      # makes the window/page backgrounds transparent (or opaque)
-        if on:
-            self.applyMica()
-        self.update()
-
-    def applyMica(self):
-        """Set Mica through DWM directly.
-
-        qfluentwidgets' setMicaEffect only ever *sets* the dark-colours flag, so after Dark -> Light
-        the backdrop stayed dark while the widgets turned light. Toggling
-        DWMWA_USE_IMMERSIVE_DARK_MODE ourselves keeps backdrop and widgets in step."""
-        hwnd = wintypes.HWND(int(self.winId()))
-        dwm = ctypes.windll.dwmapi
-        self.windowEffect.removeBackgroundEffect(int(self.winId()))   # drop the library's accent policy
-        margins = (ctypes.c_int * 4)(-1, -1, -1, -1)                   # extend frame over the whole window
-        dwm.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(margins))
-        dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(ctypes.c_int(int(isDarkTheme()))), 4)  # dark mode
-        dwm.DwmSetWindowAttribute(hwnd, 38, ctypes.byref(ctypes.c_int(self.BACKDROP[cfg.material.value])), 4)
-
-    def _onThemeChangedFinished(self):
-        super()._onThemeChangedFinished()
-        if self.isMicaEffectEnabled():
-            self.applyMica()
-            QTimer.singleShot(100, self.applyMica)   # the frame repaints after the theme flips
 
     def closeEvent(self, e):
         if cfg.closeToTray.value and not self.quitting:

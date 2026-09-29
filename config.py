@@ -3,7 +3,7 @@ import sys
 import winreg
 
 from qfluentwidgets import (QConfig, ConfigItem, RangeConfigItem, RangeValidator, BoolValidator,
-                            OptionsConfigItem, OptionsValidator, qconfig)
+                            qconfig)
 
 APP_NAME = "WifiGuard"
 DATA_DIR = os.path.join(os.environ.get("APPDATA", "."), APP_NAME)
@@ -17,8 +17,6 @@ class Config(QConfig):
     grace = RangeConfigItem("Monitor", "GraceSeconds", 15, RangeValidator(5, 60))
     network = ConfigItem("Monitor", "Network", "Auto")
     closeToTray = ConfigItem("App", "CloseToTray", True, BoolValidator())
-    material = OptionsConfigItem("App", "Material", "Mica",
-                                 OptionsValidator(["Mica", "Mica Alt", "Acrylic", "Off"]))
     notifyReconnect = ConfigItem("Notifications", "OnReconnect", True, BoolValidator())
     notifyRecovered = ConfigItem("Notifications", "OnRecovered", True, BoolValidator())
 
