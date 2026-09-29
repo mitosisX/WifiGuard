@@ -1,4 +1,61 @@
+# --- Python ---
 __pycache__/
-*.pyc
-*.png
+*.py[cod]
+*$py.class
 .venv/
+venv/
+env/
+.python-version
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- PyInstaller / packaging (build.py writes these) ---
+/build/
+/dist/
+*.spec
+*.manifest
+*.zip
+*.exe
+*.msi
+
+# --- App runtime data (lives in %APPDATA%\WifiGuard normally; ignore strays) ---
+history.db
+history.db-journal
+history.db-wal
+history.db-shm
+*.db
+config.json
+*.log
+
+# --- Local scratch: screenshots and comparison images from UI checks (root only, so real
+#     assets under assets/ are never hidden) ---
+/*.png
+/*.jpg
+/scratch/
+/tmp/
+
+# --- Secrets ---
+.env
+.env.*
+*.pem
+*.key
+
+# --- Editors / IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# --- OS ---
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.DS_Store

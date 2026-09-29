@@ -21,7 +21,8 @@ from monitor import Monitor
 from splash import SplashScreen
 from stats_page import StatsInterface
 
-SERVER_NAME = "WifiGuard-single-instance"
+# The env override lets a test build run beside a live copy without pinging it.
+SERVER_NAME = os.environ.get("WIFIGUARD_INSTANCE", "WifiGuard-single-instance")
 
 GREEN, RED, AMBER = QColor("#5E8C0A"), QColor("#D13438"), QColor("#B26A00")
 GREEN_D, RED_D, AMBER_D = QColor("#B0D135"), QColor("#FF6B6F"), QColor("#FFB347")

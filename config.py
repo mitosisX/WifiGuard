@@ -31,6 +31,8 @@ def load():
 
 
 def _launch_command():
+    if getattr(sys, "frozen", False):   # PyInstaller build: the exe *is* the app
+        return f'"{sys.executable}" --tray'
     exe = sys.executable
     if exe.lower().endswith("python.exe"):
         exe = exe[:-10] + "pythonw.exe"
