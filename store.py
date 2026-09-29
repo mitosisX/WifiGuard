@@ -11,6 +11,7 @@ from config import DATA_DIR
 DB_PATH = os.path.join(DATA_DIR, "history.db")
 
 # kind: 'drop' | 'auto' (automatic reconnect) | 'manual' (reconnect button) | 'recovered'
+#       | 'dns_fail' / 'dns_ok' (diagnostic only: DNS down while raw internet works)
 _SCHEMA = """CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,            -- local time, ISO 8601, seconds

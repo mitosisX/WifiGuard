@@ -11,7 +11,8 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, FluentIcon as F
 import store
 
 KIND_TEXT = {"drop": "Internet dropped", "auto": "Auto-reconnect",
-             "manual": "Manual reconnect", "recovered": "Internet restored"}
+             "manual": "Manual reconnect", "recovered": "Internet restored",
+             "dns_fail": "DNS not resolving", "dns_ok": "DNS resolving again"}
 
 
 def fmt_duration(seconds):
@@ -164,7 +165,7 @@ class StatsInterface(ScrollArea):
         for r, (ts, kind, network, downtime) in enumerate(rows):
             when = datetime.fromisoformat(ts)
             cells = [f"{when:%b %d}, {store.clock(when)}", KIND_TEXT.get(kind, kind), network or "-",
-                     fmt_duration(downtime) if kind == "recovered" else "-"]
+                     fmt_duration(downtime) if kind in ("recovered", "dns_ok") else "-"]
             for c, text in enumerate(cells):
                 self.table.setItem(r, c, QTableWidgetItem(text))
         self.table.setVisible(bool(rows))

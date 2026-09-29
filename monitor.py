@@ -1,4 +1,5 @@
 """Background internet watchdog: detects real internet loss and bounces Wi-Fi."""
+import ctypes
 import queue
 import socket
 import threading
@@ -36,6 +37,36 @@ def internet_ok(timeout=1.5):
     return False
 
 
+_dnsapi = ctypes.WinDLL("dnsapi")
+_DNS_TYPE_A = 1
+_DNS_QUERY_BYPASS_CACHE = 0x8
+DNS_PROBE_NAME = "www.msftconnecttest.com"
+
+
+def dns_ok(timeout=3.0):
+    """True if the configured DNS server answers a fresh lookup.
+
+    DnsQuery with BYPASS_CACHE talks to the real resolver; a plain getaddrinfo could be answered
+    from Windows' cache and hide a dead DNS relay. The call can't be cancelled, so it runs in a
+    daemon thread and we simply stop waiting after `timeout`.
+    """
+    result = queue.Queue()
+
+    def query():
+        records = ctypes.c_void_p()
+        rc = _dnsapi.DnsQuery_W(DNS_PROBE_NAME, _DNS_TYPE_A, _DNS_QUERY_BYPASS_CACHE, None,
+                                ctypes.byref(records), None)
+        if rc == 0 and records.value:
+            _dnsapi.DnsRecordListFree(records, 1)   # DnsFreeRecordList
+        result.put(rc == 0)
+
+    threading.Thread(target=query, daemon=True).start()
+    try:
+        return result.get(timeout=timeout)
+    except queue.Empty:
+        return False
+
+
 class Monitor(QThread):
     status = Signal(bool, str)      # internet up?, network name ('' if unknown)
     log = Signal(str)
@@ -57,6 +88,8 @@ class Monitor(QThread):
         self.last_drop = "never"
         self.last_network = ""
         self._net_checked = 0.0
+        self._dns_checked = 0.0
+        self._dns_bad_since = None
         self._fails = 0
         self._failed_recoveries = 0
         self._was_up = True
@@ -195,6 +228,28 @@ class Monitor(QThread):
         self.historyChanged.emit()
         self._say("Internet check failed.")
 
+    def _diagnose_dns(self):
+        """Log-only: note when raw connectivity works but name lookups don't. Never reconnects.
+
+        Runs every 30 s and needs two failed lookups in a row, so one lost packet isn't reported.
+        """
+        now = time.monotonic()
+        if now - self._dns_checked < 30:
+            return
+        self._dns_checked = now
+        ok = dns_ok() or dns_ok()
+        if not ok and self._dns_bad_since is None:
+            self._dns_bad_since = now
+            self._say("DNS is not resolving although the internet is reachable (diagnostic only).")
+            store.add("dns_fail", self.last_network)
+            self.historyChanged.emit()
+        elif ok and self._dns_bad_since is not None:
+            secs = int(now - self._dns_bad_since)
+            self._dns_bad_since = None
+            self._say(f"DNS is resolving again after about {secs}s.")
+            store.add("dns_ok", self.last_network, secs)
+            self.historyChanged.emit()
+
     def _on_up(self, checked_at):
         if not self._was_up:
             secs = int(time.monotonic() - self._drop_at) if self._drop_at else None
@@ -215,6 +270,8 @@ class Monitor(QThread):
             self._net_checked = time.monotonic()
             self.last_network = wlan.current_network() or self.last_network
         self.status.emit(True, self.last_network)
+
+        self._diagnose_dns()
 
         today = datetime.now().date()
         if today != self._day:   # midnight rollover: "Reconnects today" starts from zero
