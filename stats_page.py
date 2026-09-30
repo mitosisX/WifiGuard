@@ -187,5 +187,6 @@ class StatsInterface(ScrollArea):
         if box.exec():
             store.clear()
             self.monitor.reconnects = 0   # keep the Status page's "Reconnects today" in step
+            self.monitor.last_drop = "never"   # the drop events it came from are gone too
             self.monitor.stats.emit(0, self.monitor.last_drop)
             self.refresh()

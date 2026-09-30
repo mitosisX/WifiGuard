@@ -11,13 +11,20 @@ from config import DATA_DIR
 DB_PATH = os.path.join(DATA_DIR, "history.db")
 
 # kind: 'drop' | 'auto' (automatic reconnect) | 'manual' (reconnect button) | 'recovered'
-#       | 'dns_fail' / 'dns_ok' (diagnostic only: DNS down while raw internet works)
+#       | 'dns_fail' / 'dns_ok' (DNS down while raw internet works)
 _SCHEMA = """CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,            -- local time, ISO 8601, seconds
     kind TEXT NOT NULL,
     network TEXT NOT NULL DEFAULT '',
     downtime INTEGER             -- seconds, only on 'recovered'
+)"""
+
+# The Activity page's text lines, kept so they survive a restart.
+_ACTIVITY_SCHEMA = """CREATE TABLE IF NOT EXISTS activity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,            -- local time, ISO 8601, seconds
+    msg TEXT NOT NULL
 )"""
 
 
@@ -30,6 +37,7 @@ def _connect():
     os.makedirs(DATA_DIR, exist_ok=True)
     con = sqlite3.connect(DB_PATH, timeout=5)
     con.execute(_SCHEMA)
+    con.execute(_ACTIVITY_SCHEMA)
     return con
 
 
@@ -37,6 +45,34 @@ def add(kind, network="", downtime=None):
     with closing(_connect()) as con, con:
         con.execute("INSERT INTO events (ts, kind, network, downtime) VALUES (?,?,?,?)",
                     (datetime.now().isoformat(timespec="seconds"), kind, network, downtime))
+
+
+def last_drop():
+    """When the most recent internet drop happened, or None if none is recorded."""
+    with closing(_connect()) as con:
+        row = con.execute("SELECT ts FROM events WHERE kind='drop' ORDER BY id DESC LIMIT 1").fetchone()
+    return datetime.fromisoformat(row[0]) if row else None
+
+
+def log_add(msg):
+    with closing(_connect()) as con, con:
+        con.execute("INSERT INTO activity (ts, msg) VALUES (?,?)",
+                    (datetime.now().isoformat(timespec="seconds"), msg))
+
+
+def log_today():
+    """[(time, message)] of today's Activity lines, oldest first."""
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    with closing(_connect()) as con:
+        rows = con.execute("SELECT ts, msg FROM activity WHERE ts >= ? ORDER BY id",
+                           (midnight.isoformat(timespec="seconds"),)).fetchall()
+    return [(datetime.fromisoformat(ts), msg) for ts, msg in rows]
+
+
+def prune_log(days=30):
+    since = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+    with closing(_connect()) as con, con:
+        con.execute("DELETE FROM activity WHERE ts < ?", (since,))
 
 
 def reconnects_per_day(days=14):

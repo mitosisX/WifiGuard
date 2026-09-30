@@ -2,6 +2,7 @@
 import ctypes
 import queue
 import socket
+import sqlite3
 import threading
 import time
 from datetime import datetime, timedelta
@@ -41,6 +42,7 @@ _dnsapi = ctypes.WinDLL("dnsapi")
 _DNS_TYPE_A = 1
 _DNS_QUERY_BYPASS_CACHE = 0x8
 DNS_PROBE_NAME = "www.msftconnecttest.com"
+DNS_RECOVER_AFTER = 60   # seconds of failed lookups (raw internet up) before bouncing Wi-Fi
 
 
 def dns_ok(timeout=3.0):
@@ -67,6 +69,10 @@ def dns_ok(timeout=3.0):
         return False
 
 
+def drop_text(when):
+    return f"{when:%b %d}, {store.clock(when)}"
+
+
 class Monitor(QThread):
     status = Signal(bool, str)      # internet up?, network name ('' if unknown)
     log = Signal(str)
@@ -85,11 +91,14 @@ class Monitor(QThread):
         self.reconnects = store.today_count()
         self._drop_at = None
         self._last_ok = time.monotonic()
-        self.last_drop = "never"
+        last = store.last_drop()
+        self.last_drop = drop_text(last) if last else "never"
         self.last_network = ""
         self._net_checked = 0.0
         self._dns_checked = 0.0
         self._dns_bad_since = None
+        self._dns_next_recover = 0.0
+        self._dns_recoveries = 0
         self._fails = 0
         self._failed_recoveries = 0
         self._was_up = True
@@ -111,6 +120,10 @@ class Monitor(QThread):
     # -- internals --
     def _say(self, msg):
         self.log.emit(f"{store.clock(datetime.now())}  {msg}")
+        try:
+            store.log_add(msg)   # so the Activity page survives a restart
+        except sqlite3.Error:
+            pass   # losing a history line must never take the watchdog down
 
     def _target(self):
         fixed = self.cfg.network.value
@@ -223,15 +236,18 @@ class Monitor(QThread):
         # midpoint so the outage length isn't systematically too short (or too long).
         self._drop_at = (self._last_ok + checked_at) / 2
         dropped = datetime.now() - timedelta(seconds=time.monotonic() - self._drop_at)
-        self.last_drop = f"{dropped:%b %d}, {store.clock(dropped)}"
+        self.last_drop = drop_text(dropped)
         store.add("drop", self.last_network)
         self.historyChanged.emit()
         self._say("Internet check failed.")
 
     def _diagnose_dns(self):
-        """Log-only: note when raw connectivity works but name lookups don't. Never reconnects.
+        """Watch for raw connectivity working while name lookups don't (the browser shows "no
+        internet" but the TCP probes pass). Logs it, and reconnects if it lasts.
 
         Runs every 30 s and needs two failed lookups in a row, so one lost packet isn't reported.
+        Reconnecting waits DNS_RECOVER_AFTER seconds, then backs off if DNS is still dead so an
+        upstream DNS outage doesn't make us thrash the adapter.
         """
         now = time.monotonic()
         if now - self._dns_checked < 30:
@@ -240,12 +256,21 @@ class Monitor(QThread):
         ok = dns_ok() or dns_ok()
         if not ok and self._dns_bad_since is None:
             self._dns_bad_since = now
-            self._say("DNS is not resolving although the internet is reachable (diagnostic only).")
+            self._dns_next_recover = now + DNS_RECOVER_AFTER
+            self._say("DNS is not resolving although the internet is reachable.")
             store.add("dns_fail", self.last_network)
             self.historyChanged.emit()
+        elif not ok and now >= self._dns_next_recover:
+            secs = int(now - self._dns_bad_since)
+            self._recover(f"DNS not resolving for {secs}s although the internet is reachable.")
+            self._dns_recoveries += 1
+            done = time.monotonic()
+            self._dns_next_recover = done + min(DNS_RECOVER_AFTER * (self._dns_recoveries + 1), 300)
+            self._dns_checked = done
         elif ok and self._dns_bad_since is not None:
             secs = int(now - self._dns_bad_since)
             self._dns_bad_since = None
+            self._dns_recoveries = 0
             self._say(f"DNS is resolving again after about {secs}s.")
             store.add("dns_ok", self.last_network, secs)
             self.historyChanged.emit()

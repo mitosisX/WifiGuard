@@ -14,6 +14,7 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox, Expan
                             qconfig, setCustomStyleSheet, setTheme, setThemeColor)
 
 import config
+import store
 import wlan
 from config import cfg
 from monitor import Monitor
@@ -99,7 +100,7 @@ class HomeInterface(QWidget):
         self.countCard = StatCard(FIF.SYNC, "Reconnects today", self)
         self.dropCard = StatCard(FIF.HISTORY, "Last drop", self)
         self.countCard.value.setText(str(monitor.reconnects))
-        self.dropCard.value.setText("never")
+        self.dropCard.value.setText(monitor.last_drop)
         for c in (self.netCard, self.countCard, self.dropCard):
             stats.addWidget(c, 1)
         root.addLayout(stats)
@@ -166,6 +167,10 @@ class LogInterface(QWidget):
         self.text.setReadOnly(True)
         self.text.document().setMaximumBlockCount(1000)
         root.addWidget(self.text, 1)
+        # Earlier lines from today come back after a restart; this runs before the monitor thread
+        # starts, so the new session's lines always land after them.
+        for when, msg in store.log_today():
+            self.text.appendPlainText(f"{store.clock(when)}  {msg}")
         monitor.log.connect(self.text.appendPlainText)
 
 
@@ -358,6 +363,7 @@ def main():
     # refresh, so switching Dark -> Light left half the UI dark (same wiring as the gallery example).
     qconfig.themeChanged.connect(setTheme)
     setThemeColor(config.BRAND)   # older config files still carry the previous accent
+    store.prune_log()
     monitor = Monitor(cfg)
     silent = "--tray" in sys.argv
     win = MainWindow(monitor, startHidden=True)
