@@ -1,7 +1,7 @@
 import os
 import sys
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMenu, QSystemTrayIcon, QVBoxLayout,
@@ -15,7 +15,6 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox, Expan
 
 import config
 import wlan
-from brand import TitleLogo
 from config import cfg
 from monitor import Monitor
 from splash import SplashScreen
@@ -269,27 +268,12 @@ class MainWindow(FluentWindow):
         self.setMinimumSize(720, 520)
         self.setWindowTitle("WifiGuard")
         self.setWindowIcon(FIF.WIFI.icon(color=GREEN))
-        # Company mark centred in the title bar. It floats over the bar (not in its layout) so it
-        # stays centred on the *window*, not on whatever space is left between title and buttons.
-        self.titleLogo = TitleLogo(self.titleBar)
-        self.titleBar.installEventFilter(self)
-        self._centerTitleLogo()
         self.navigationInterface.setAcrylicEnabled(True)
         self.navigationInterface.setMinimumExpandWidth(700)   # show text labels next to icons
         self.navigationInterface.setExpandWidth(200)
 
         self.buildTray()
         monitor.notify.connect(self.onNotify)
-
-    def _centerTitleLogo(self):
-        bar, logo = self.titleBar, self.titleLogo
-        logo.move((bar.width() - logo.width()) // 2, (bar.height() - logo.height()) // 2)
-        logo.raise_()
-
-    def eventFilter(self, obj, e):
-        if obj is self.titleBar and e.type() == QEvent.Resize:
-            self._centerTitleLogo()
-        return super().eventFilter(obj, e)
 
     def buildTray(self):
         self.tray = QSystemTrayIcon(FIF.WIFI.icon(color=GREEN_D), self)

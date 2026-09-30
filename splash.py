@@ -1,17 +1,16 @@
 import os
 
 from PySide6.QtCore import (QEasingCurve, QPropertyAnimation, QRectF, Qt, QTimer, Signal)
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath
-from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import isDarkTheme
 
-LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.svg")
+LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.png")
+LOGO_SIZE = 160.0   # drawn size on screen; the PNG is 200px so it never upscales
 
-# (surface, tagline, logo green, border). The brand green #B0D135 vanishes on white, so light
-# mode uses a deeper green of the same hue (4.6:1 on the surface).
-DARK = (QColor("#0E1310"), QColor("#A3ADA8"), "#B0D135", QColor(255, 255, 255, 20))
-LIGHT = (QColor("#F9FAF7"), QColor("#4B554F"), "#5E8C0A", QColor(0, 0, 0, 30))
+# (surface, tagline, border)
+DARK = (QColor("#0E1310"), QColor("#A3ADA8"), QColor(255, 255, 255, 20))
+LIGHT = (QColor("#F9FAF7"), QColor("#4B554F"), QColor(0, 0, 0, 30))
 
 SHOW_MS = 3000
 FADE_IN_MS = 450
@@ -19,7 +18,7 @@ FADE_OUT_MS = 250
 
 
 class SplashScreen(QWidget):
-    """Brand splash: fades in, holds, fades out after SHOW_MS. Click or Esc skips."""
+    """Splash: fades in, holds, fades out after SHOW_MS. Click or Esc skips."""
     finished = Signal()
 
     def __init__(self):
@@ -27,10 +26,8 @@ class SplashScreen(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAccessibleName("WifiGuard is starting")
         self.resize(560, 340)
-        self.surface, self.tagline, green, self.border = DARK if isDarkTheme() else LIGHT
-        with open(LOGO, "rb") as f:
-            svg = f.read().replace(b"#b0d135", green.encode())
-        self.renderer = QSvgRenderer(svg)
+        self.surface, self.tagline, self.border = DARK if isDarkTheme() else LIGHT
+        self.logo = QPixmap(LOGO)
         self._done = False
         self.setWindowOpacity(0.0)
 
@@ -88,12 +85,12 @@ class SplashScreen(QWidget):
         p.setPen(self.border)
         p.drawPath(path)
 
-        logoW = 340.0
-        ar = self.renderer.defaultSize().height() / self.renderer.defaultSize().width()
-        logoH = logoW * ar
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        logoW = LOGO_SIZE
+        logoH = logoW * self.logo.height() / self.logo.width()
         x = (self.width() - logoW) / 2
         y = (self.height() - logoH) / 2 - 14
-        self.renderer.render(p, QRectF(x, y, logoW, logoH))
+        p.drawPixmap(QRectF(x, y, logoW, logoH), self.logo, QRectF(self.logo.rect()))
 
         f = QFont(self.font())
         f.setPixelSize(13)

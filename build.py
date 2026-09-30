@@ -96,7 +96,7 @@ def main():
         "--name", NAME,
         "--windowed",                                   # no console window
         "--icon", ICON,
-        "--add-data", f"{os.path.join(ROOT, 'assets')}{os.pathsep}assets",   # logo svg (splash, title bar)
+        "--add-data", f"{os.path.join(ROOT, 'assets')}{os.pathsep}assets",   # splash logo
         "--collect-submodules", "qfluentwidgets",       # its resources/icons are imported dynamically
         "--collect-submodules", "qframelesswindow",
         "--hidden-import", "PySide6.QtSvg",
