@@ -8,6 +8,8 @@ don't have to keep doing it by hand every time the connection drops.
 The link always gets the newest version. Older versions are on the
 [Releases page](https://github.com/mitosisX/WifiGuard/releases).
 
+![WifiGuard's Status page showing "Internet connected"](docs/screenshots/status.png)
+
 ## Install
 
 1. Download **WifiGuard.zip** with the link above.
@@ -37,6 +39,14 @@ warn you the first time. Click **More info**, then **Run anyway**.
 - **Runs quietly in the tray.** It can start with Windows and keep watching after you close
   the window.
 - **Light and dark theme**, or follow your Windows setting.
+
+## Screenshots
+
+| Statistics | Activity |
+| --- | --- |
+| ![Statistics page with a chart of reconnects per day](docs/screenshots/statistics.png) | ![Activity log of checks and reconnects](docs/screenshots/activity.png) |
+| **Settings** | **About** |
+| ![Settings page with monitoring options](docs/screenshots/settings.png) | ![About card](docs/screenshots/about.png) |
 
 ## Settings
 
@@ -73,6 +83,39 @@ python build.py
 The app is written to `dist\WifiGuard\WifiGuard.exe`. Run `python build.py --help` for the
 other options.
 
+## Contributing
+
+Bug reports, ideas and pull requests are welcome.
+
+- **Found a bug or have an idea?** [Open an issue](https://github.com/mitosisX/WifiGuard/issues).
+  For a bug, say what happened, what you expected, and your Windows version. The
+  **Activity** page's log helps a lot.
+- **Want to change the code?** For anything bigger than a small fix, open an issue first so
+  we can agree on the approach. Then fork the repo, make your change on a branch, and open a
+  pull request against `main`.
+- **Before sending a pull request,** run the tests with `python -m pytest` and check that
+  the app still starts with `python main.py`.
+
 ## Author
 
 Made by **Omega Msiska**. Find me on GitHub at [@mitosisX](https://github.com/mitosisX).
+
+## Credits
+
+- Icons by [Icons8](https://icons8.com).
+- Built with [PySide6](https://doc.qt.io/qtforpython-6/) and
+  [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets).
+
+## License
+
+Copyright (C) 2026 Omega Msiska
+
+WifiGuard's source code is released under the [MIT License](LICENSE). You can use it, change
+it, and port it to other platforms or languages under any license you like, as long as you
+keep the copyright notice.
+
+The Windows download also includes
+[PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets), which is GPLv3, so
+that download as a whole is distributed under the GPLv3. This only matters if your fork
+still uses Fluent Widgets. A port built on a different UI library isn't affected. See
+[licenses/THIRD-PARTY.txt](licenses/THIRD-PARTY.txt) for every bundled component.

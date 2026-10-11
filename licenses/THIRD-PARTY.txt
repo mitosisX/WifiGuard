@@ -1,0 +1,25 @@
+WifiGuard - third-party software
+================================
+
+WifiGuard's own source code is MIT licensed (see LICENSE). The ready-to-run Windows
+build also contains the software below, each under its own license.
+
+Because PySide6-Fluent-Widgets is GPLv3, the Windows build as a whole is distributed
+under the GNU General Public License v3.0 (GPL-3.0.txt). The complete source code
+for it is at https://github.com/mitosisX/WifiGuard.
+
+Component                      License                          Source
+-----------------------------  -------------------------------  --------------------------------------------------
+PySide6-Fluent-Widgets         GPL-3.0 (GPL-3.0.txt)            https://github.com/zhiyiYo/PyQt-Fluent-Widgets
+PySide6, Shiboken6 and Qt      LGPL-3.0 (LGPL-3.0.txt,          https://pyside.org
+                               GPL-3.0.txt)
+PySideSix-Frameless-Window     LGPL-3.0 (LGPL-3.0.txt,          https://github.com/zhiyiYo/PyQt-Frameless-Window
+                               GPL-3.0.txt)
+Python                         PSF License                      https://www.python.org
+darkdetect                     BSD-3-Clause                     https://github.com/albertosottile/darkdetect
+NumPy                          BSD-3-Clause                     https://numpy.org
+
+The Qt and PySide6 libraries are shipped as separate files in the _internal folder,
+so you can replace them with your own builds of the same versions.
+
+Icons by Icons8 (https://icons8.com).

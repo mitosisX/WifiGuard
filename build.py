@@ -2,7 +2,7 @@
 
     python build.py              folder build  -> dist/WifiGuard/WifiGuard.exe   (recommended)
     python build.py --onefile    single file   -> dist/WifiGuard.exe
-    python build.py --zip        also zip the result for sharing
+    python build.py --zip        also zip the result for sharing -> dist/WifiGuard.zip
     python build.py --clean      delete build/ and dist/ first
 
 Folder builds start faster (a onefile exe unpacks itself on every launch, which delays the
@@ -73,6 +73,20 @@ def prune(folder):
     return freed / 1e6
 
 
+def license_files():
+    """(name in the release, source) for the license texts every build must ship with."""
+    yield "LICENSE.txt", os.path.join(ROOT, "LICENSE")
+    for f in sorted(os.listdir(os.path.join(ROOT, "licenses"))):
+        yield os.path.join("licenses", f), os.path.join(ROOT, "licenses", f)
+
+
+def copy_licenses(out):
+    """The GPL/LGPL parts of the bundle require their license texts next to the exe."""
+    for name, src in license_files():
+        os.makedirs(os.path.dirname(os.path.join(out, name)), exist_ok=True)
+        shutil.copy2(src, os.path.join(out, name))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--onefile", action="store_true", help="build a single exe instead of a folder")
@@ -125,15 +139,19 @@ def main():
         sys.exit("build finished but the exe is missing - check the PyInstaller output above")
     if not args.onefile:
         print(f"pruned {prune(out):.0f} MB of unused Qt files")
+        copy_licenses(out)
     size = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(out) for f in fs) if not args.onefile \
         else os.path.getsize(out)
     print(f"\nbuilt {os.path.relpath(exe, ROOT)}  ({size / 1e6:.0f} MB)")
 
     if args.zip:
-        archive = os.path.join(ROOT, "dist", f"{NAME}-{'onefile' if args.onefile else 'folder'}.zip")
+        # the folder build is the release asset; the README's download link expects this name
+        archive = os.path.join(ROOT, "dist", f"{NAME}-onefile.zip" if args.onefile else f"{NAME}.zip")
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
             if args.onefile:
                 z.write(out, os.path.basename(out))
+                for name, src in license_files():
+                    z.write(src, name)
             else:
                 for dp, _, fs in os.walk(out):
                     for f in fs:
