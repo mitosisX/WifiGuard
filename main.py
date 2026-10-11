@@ -7,15 +7,17 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMenu, QSystemTrayIcon, QVBoxLayout,
                                QWidget)
 from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox, ExpandLayout,
-                            FluentIcon as FIF, FluentIconBase, FluentWindow, IconWidget, NavigationItemPosition,
-                            OptionsSettingCard, PlainTextEdit, PrimaryPushButton, PushButton,
-                            RangeSettingCard, ScrollArea, SettingCard, SettingCardGroup,
+                            FluentIcon as FIF, FluentIconBase, FluentWindow, IconWidget,
+                            NavigationAvatarWidget, NavigationItemPosition, OptionsSettingCard,
+                            PlainTextEdit, PrimaryPushButton, PushButton, RangeSettingCard,
+                            ScrollArea, SettingCard, SettingCardGroup,
                             StrongBodyLabel, SubtitleLabel, SwitchSettingCard, Theme, TitleLabel, ToggleButton,
                             qconfig, setCustomStyleSheet, setTheme, setThemeColor)
 
 import config
 import store
 import wlan
+from about import AboutDialog
 from config import cfg
 from monitor import Monitor
 from splash import SplashScreen
@@ -23,6 +25,7 @@ from stats_page import StatsInterface
 
 # The env override lets a test build run beside a live copy without pinging it.
 SERVER_NAME = os.environ.get("WIFIGUARD_INSTANCE", "WifiGuard-single-instance")
+PROFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "profile.png")
 
 GREEN, RED, AMBER = QColor("#5E8C0A"), QColor("#D13438"), QColor("#B26A00")
 GREEN_D, RED_D, AMBER_D = QColor("#B0D135"), QColor("#FF6B6F"), QColor("#FFB347")
@@ -267,6 +270,12 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.home, FIF.WIFI, "Status")
         self.addSubInterface(self.stats, FIF.PIE_SINGLE, "Statistics")
         self.addSubInterface(self.logPage, FIF.HISTORY, "Activity")
+        self.navigationInterface.addWidget(
+            routeKey="about",
+            widget=NavigationAvatarWidget("About", PROFILE),
+            onClick=self.showAbout,
+            position=NavigationItemPosition.BOTTOM,
+        )
         self.addSubInterface(self.settings, FIF.SETTING, "Settings", NavigationItemPosition.BOTTOM)
 
         self.resize(900, 620)
@@ -293,6 +302,9 @@ class MainWindow(FluentWindow):
         self.tray.activated.connect(
             lambda r: self.showNormalAndRaise() if r == QSystemTrayIcon.Trigger else None)
         self.tray.show()
+
+    def showAbout(self):
+        AboutDialog(self).exec()
 
     def onNotify(self, title, msg):
         """Tray balloon, regardless of whether the window is open; each kind has its own toggle."""

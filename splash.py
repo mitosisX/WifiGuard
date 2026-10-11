@@ -8,9 +8,10 @@ from qfluentwidgets import isDarkTheme
 LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "logo.png")
 LOGO_SIZE = 160.0   # drawn size on screen; the PNG is 200px so it never upscales
 
-# (surface, tagline, border)
-DARK = (QColor("#0E1310"), QColor("#A3ADA8"), QColor(255, 255, 255, 20))
-LIGHT = (QColor("#F9FAF7"), QColor("#4B554F"), QColor(0, 0, 0, 30))
+# (surface, muted text, border): the main window's content area, so the splash and the
+# About card look like part of the app
+DARK = (QColor("#272727"), QColor("#9D9D9D"), QColor(255, 255, 255, 20))
+LIGHT = (QColor("#F9F9F9"), QColor("#6B6B6B"), QColor(0, 0, 0, 25))
 
 SHOW_MS = 3000
 FADE_IN_MS = 450
